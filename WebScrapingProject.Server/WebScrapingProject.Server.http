@@ -3,4 +3,6 @@
 GET {{WebScrapingProject.Server_HostAddress}}/weatherforecast/
 Accept: application/json
 
+### MongoDB Baglanti Testi
+POST {{WebScrapingProject.Server_HostAddress}}/api/news/test-connection
 ###
