@@ -5,7 +5,7 @@ namespace WebScrapingProject.Server.Models
 {
     public class NewsArticle
     {
-         //burada dbye göndereceğimiz seylerin fieldleri var işte her türlü özelliği 
+         
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
         public string? Id { get; set; }
@@ -44,5 +44,7 @@ namespace WebScrapingProject.Server.Models
         
         [BsonElement("isProcessed")]
         public bool IsProcessed { get; set; } = true;
+
+        public float[]? ContentEmbedding { get; set; }
     }
 }

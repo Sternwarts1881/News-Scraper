@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
 using WebScrapingProject.Server.Models;
 using WebScrapingProject.Server.Services;
 
@@ -15,26 +16,33 @@ namespace WebScrapingProject.Server.Controllers
             _mongoDbService = mongoDbService;
         }
 
-        [HttpPost("test-connection")]
-        public async Task<IActionResult> TestConnection()
+        
+        [HttpGet]
+        public async Task<IActionResult> GetNews([FromQuery] string? category, [FromQuery] DateTime? startDate, [FromQuery] DateTime? endDate)
         {
-            var testArticle = new NewsArticle
+            
+            var allNews = await _mongoDbService.GetAllAsync();
+
+            
+            var filteredNews = allNews.AsQueryable();
+
+            if (!string.IsNullOrEmpty(category) && category != "Tümü")
             {
-                Category = "Test",
-                Title = "MongoDB Bağlantı Testi",
-                Content = "Db Calısıyor mu diye test obje",
-                LocationText = "Gölcük, Kocaeli",
-                Latitude = 40.7184,
-                Longitude = 29.8215,
-                PublishDate = DateTime.Now,
-                SourceNames = { "test kaynagı" },
-                Url = "http://localhost",
-                IsProcessed = true
-            };
+                filteredNews = filteredNews.Where(n => n.Category == category);
+            }
 
-            await _mongoDbService.CreateTestArticleAsync(testArticle);
+            if (startDate.HasValue)
+            {
+                filteredNews = filteredNews.Where(n => n.PublishDate >= startDate.Value);
+            }
 
-            return Ok("basarili");
+            if (endDate.HasValue)
+            {
+                filteredNews = filteredNews.Where(n => n.PublishDate <= endDate.Value);
+            }
+
+            
+            return Ok(filteredNews.ToList());
         }
     }
 }

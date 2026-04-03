@@ -10,62 +10,85 @@ namespace WebScrapingProject.Server.Services
 
         public MongoDbService(IOptions<MongoDbSettings> mongoDbSettings, IMongoClient mongoClient)
         {
-            
             var database = mongoClient.GetDatabase(mongoDbSettings.Value.DatabaseName);
-
-         
             _newsCollection = database.GetCollection<NewsArticle>(mongoDbSettings.Value.NewsCollectionName);
         }
 
-       
         public async Task CreateTestArticleAsync(NewsArticle newArticle)
         {
             await _newsCollection.InsertOneAsync(newArticle);
         }
 
+   
         public async Task ProcessAndSaveArticleAsync(NewsArticle newArticle, SimilarityService similarityService)
         {
-            
-            var recentDate = DateTime.Now.AddDays(-4);
-            var existingArticles = await _newsCollection.Find(a => a.PublishDate >= recentDate).ToListAsync();
+           
+            string combinedText = $"{newArticle.Title}. {newArticle.Content}";
+            newArticle.ContentEmbedding = await similarityService.GetEmbeddingAsync(combinedText);
+
+          
+            if (newArticle.ContentEmbedding == null || newArticle.ContentEmbedding.Length == 0) return;
+
+           
+            var limitDate = DateTime.Now.Date.AddDays(-3);
+            var filter = Builders<NewsArticle>.Filter.Gte(a => a.PublishDate, limitDate);
+
+            var existingArticles = await _newsCollection.Find(filter).ToListAsync();
 
             bool isDuplicate = false;
 
             foreach (var existing in existingArticles)
             {
-               
-                double similarityScore = similarityService.CalculateCosineSimilarity(newArticle.Content, existing.Content);
 
-             
-                if (similarityScore >= 0.90)
+                if (existing.ContentEmbedding == null || existing.ContentEmbedding.Length == 0) continue;
+
+              
+                double semanticSimilarity = similarityService.CalculateCosineSimilarity(newArticle.ContentEmbedding, existing.ContentEmbedding);
+
+               
+                if (semanticSimilarity >= 0.85)
                 {
                     isDuplicate = true;
 
-                  
+                    
                     var newSource = newArticle.SourceNames.FirstOrDefault();
                     if (newSource != null && !existing.SourceNames.Contains(newSource))
                     {
                         existing.SourceNames.Add(newSource);
 
-                        var filter = Builders<NewsArticle>.Filter.Eq(a => a.Id, existing.Id);
+                        var updateFilter = Builders<NewsArticle>.Filter.Eq(a => a.Id, existing.Id);
                         var update = Builders<NewsArticle>.Update.Set(a => a.SourceNames, existing.SourceNames);
-                        await _newsCollection.UpdateOneAsync(filter, update);
+                        await _newsCollection.UpdateOneAsync(updateFilter, update);
 
-                        Console.WriteLine($"benzer! %{Math.Round(similarityScore * 100)} benzerlik. '{newSource}' kaynağı mevcut habere eklendi.");
+                        Console.WriteLine($"   aynı haberler birleştiriliyor  Cosine değeri: %{Math.Round(semanticSimilarity * 100)}. '{newSource}' kaynağı eklendi.");
                     }
-                    break; 
+                    else
+                    {
+                        Console.WriteLine($"  benzer haber atlanıyor  zaten '{newSource}' kaynağını içeriyor.");
+                    }
+
+                    break;
                 }
             }
 
-            
+          
             if (!isDuplicate)
             {
                 await _newsCollection.InsertOneAsync(newArticle);
             }
         }
+
+        
         public async Task<List<NewsArticle>> GetAllAsync()
         {
-            return await _newsCollection.Find(_ => true).ToListAsync();
+           
+            var limitDate = DateTime.Now.Date.AddDays(-3);
+            var filter = Builders<NewsArticle>.Filter.Gte(x => x.PublishDate, limitDate);
+
+           
+            return await _newsCollection.Find(filter)
+                                        .SortByDescending(x => x.PublishDate)
+                                        .ToListAsync();
         }
     }
 }
