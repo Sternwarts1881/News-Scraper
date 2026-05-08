@@ -1,5 +1,6 @@
 # News Scraper
 
+<img width="1519" height="777" alt="image" src="https://github.com/user-attachments/assets/1bbc85b8-add7-4e6b-b850-846304f03e0c" />
 
 
 ## Description
